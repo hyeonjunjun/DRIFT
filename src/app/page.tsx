@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Map as MapIcon, Compass, Coffee, Info } from 'lucide-react';
+import Link from 'next/link';
 import VibeMap from '@/components/map/VibeMap';
 import { useVibeAgent } from '@/hooks/useVibeAgent';
 import { VibeSegment } from '@/types';
 import westVillageData from '@/lib/vibe-graph/west-village.json';
 
 export default function Home() {
-  const { segments, query, curate, isCurating } = useVibeAgent(westVillageData as VibeSegment[]);
+  const { segments, query, curate, isCurating, conciergeNote, activeLabels } = useVibeAgent(westVillageData as VibeSegment[]);
   const [searchInput, setSearchInput] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -51,6 +52,20 @@ export default function Home() {
             </span>
           </div>
 
+          <AnimatePresence>
+            {conciergeNote && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="bg-accent/5 p-4 rounded-xl border border-accent/20"
+              >
+                <p className="text-sm font-serif italic text-foreground leading-relaxed">
+                  "{conciergeNote}"
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex flex-col gap-4">
             {segments.map((s) => (
               <motion.div
@@ -78,13 +93,30 @@ export default function Home() {
           </div>
         </div>
 
-        <footer className="mt-auto pt-8 border-t border-border flex items-center justify-between text-muted-foreground">
-          <div className="flex gap-4">
-            <Compass className="w-4 h-4 hover:text-foreground cursor-pointer transition-colors" />
-            <MapIcon className="w-4 h-4 hover:text-foreground cursor-pointer transition-colors" />
-            <Coffee className="w-4 h-4 hover:text-foreground cursor-pointer transition-colors" />
+        <footer className="mt-auto pt-8 border-t border-border flex flex-col gap-6">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <div className="flex gap-4">
+              <Link href="/odyssey" title="The Odyssey">
+                <Compass className="w-5 h-5 hover:text-accent cursor-pointer transition-colors" />
+              </Link>
+              <Link href="/joyride" title="The Joyride">
+                <MapIcon className="w-5 h-5 hover:text-accent cursor-pointer transition-colors" />
+              </Link>
+              <Coffee className="w-5 h-5 hover:text-accent cursor-pointer transition-colors" />
+            </div>
+            <p className="text-[10px] tracking-widest uppercase">West Village Prototype v1.0</p>
           </div>
-          <p className="text-[10px] tracking-widest uppercase">West Village Prototype v1.0</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Link href="/odyssey" className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-transparent hover:border-accent/20 transition-all">
+              <span className="text-[8px] uppercase tracking-widest text-muted-foreground">Switch to Macro</span>
+              <span className="text-xs font-serif">The Odyssey</span>
+            </Link>
+            <Link href="/joyride" className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-transparent hover:border-accent/20 transition-all">
+              <span className="text-[8px] uppercase tracking-widest text-muted-foreground">Switch to Meso</span>
+              <span className="text-xs font-serif">The Joyride</span>
+            </Link>
+          </div>
         </footer>
       </section>
 
@@ -115,7 +147,9 @@ export default function Home() {
                   <h2 className="text-3xl font-serif mb-4 italic">Curating...</h2>
                 </motion.div>
                 <p className="text-muted-foreground font-sans animate-pulse">
-                  Finding a path with better light and historic soul.
+                  {activeLabels.length > 0
+                    ? `Aligning with ${activeLabels.join(', ')}...`
+                    : "Finding a path with better light and historic soul."}
                 </p>
               </div>
             </motion.div>
