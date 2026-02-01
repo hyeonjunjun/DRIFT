@@ -1,20 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  /* Warm Modernism Palette */
-  --background: #FDFCF0; /* Cream Paper */
-  --foreground: #1A1A1A; /* Ink */
-  --accent: #D4A373;   /* Muted Gold */
-  
+  /* Premium Digital Hygge Palette */
+  --background: #FDFBF7;
+  /* "Alabaster Paper" - Slightly warmer than before */
+  --foreground: #1C1C1E;
+  /* "Off-Black" - Softer than pure black */
+
   --card: #FFFFFF;
-  --card-foreground: #1A1A1A;
-  
-  --muted: #F1F0E8;
-  --muted-foreground: #6B7280;
-  
-  --border: #E5E7EB;
-  --input: #E5E7EB;
+  --card-foreground: #1C1C1E;
+
+  --popover: #FFFFFF;
+  --popover-foreground: #1C1C1E;
+
+  --primary: #1C1C1E;
+  --primary-foreground: #FDFBF7;
+
+  --secondary: #F2F0E9;
+  /* "Washed Linkedin" - Subtle beige/grey */
+  --secondary-foreground: #1C1C1E;
+
+  --muted: #F2F0E9;
+  --muted-foreground: #8E8E93;
+  /* IOS-like neutral grey */
+
+  --accent: #D4A373;
+  /* "Paper Bag" / Gold - Kept from original, good warmth */
+  --accent-foreground: #FFFFFF;
+
+  --destructive: #EF4444;
+  --destructive-foreground: #FFFFFF;
+
+  --border: #E5E5EA;
+  /* Subtle IOS border */
+  --input: #E5E5EA;
   --ring: #D4A373;
+
+  --radius: 1rem;
+  /* More rounded premium feel */
 }
 
 @theme inline {
@@ -48,7 +71,12 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-serif);
   font-weight: 500;
   letter-spacing: -0.02em;

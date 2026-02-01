@@ -17,6 +17,15 @@ export default function VibeMap({ segments, mapboxToken }: VibeMapProps) {
         latitude: 40.7351,
         zoom: 16
     });
+    const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/light-v11');
+
+    const toggleStyle = () => {
+        setMapStyle(prev =>
+            prev.includes('light')
+                ? 'mapbox://styles/mapbox/satellite-streets-v12'
+                : 'mapbox://styles/mapbox/light-v11'
+        );
+    };
 
     const geojson = {
         type: 'FeatureCollection',
@@ -36,38 +45,54 @@ export default function VibeMap({ segments, mapboxToken }: VibeMapProps) {
     };
 
     return (
-        <div className="w-full h-full relative rounded-2xl overflow-hidden shadow-sm border border-border">
+        <div className="w-full h-full relative rounded-3xl overflow-hidden shadow-sm border border-border/50 bg-muted/20">
             <Map
                 {...viewState}
                 onMove={evt => setViewState(evt.viewState)}
                 style={{ width: '100%', height: '100%' }}
-                mapStyle="mapbox://styles/mapbox/light-v11"
+                mapStyle={mapStyle}
                 mapboxAccessToken={mapboxToken}
             >
                 <Source id="vibe-paths" type="geojson" data={geojson as any}>
-                    <Layer
-                        id="vibe-lines"
-                        type="line"
-                        paint={{
-                            'line-width': 6,
-                            'line-color': '#D4A373',
-                            'line-opacity': ['get', 'intensity'],
-                            'line-blur': 4
-                        }}
-                    />
+                    {/* Glowing effect base */}
                     <Layer
                         id="vibe-lines-glow"
                         type="line"
+                        layout={{
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        }}
                         paint={{
                             'line-width': 12,
                             'line-color': '#D4A373',
-                            'line-opacity': ['*', ['get', 'intensity'], 0.2],
-                            'line-blur': 10
+                            'line-opacity': 0.2,
+                            'line-blur': 12
+                        }}
+                    />
+                    {/* Core line */}
+                    <Layer
+                        id="vibe-lines"
+                        type="line"
+                        layout={{
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        }}
+                        paint={{
+                            'line-width': 4,
+                            'line-color': '#D4A373',
+                            'line-opacity': ['get', 'intensity']
                         }}
                     />
                 </Source>
-                <NavigationControl position="bottom-right" />
+                <NavigationControl position="bottom-right" showCompass={false} />
             </Map>
+
+            <button
+                onClick={toggleStyle}
+                className="absolute bottom-4 left-4 z-10 px-4 py-2 bg-white/90 backdrop-blur-md border border-border/50 rounded-full shadow-sm text-xs font-medium uppercase tracking-widest hover:bg-white transition-colors text-foreground/80 hover:text-foreground"
+            >
+                {mapStyle.includes('light') ? 'Satellite' : 'Map'}
+            </button>
         </div>
     );
 }

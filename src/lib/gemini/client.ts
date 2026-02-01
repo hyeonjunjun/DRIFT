@@ -3,8 +3,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const apiKey = process.env.GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 
-export const getGeminiModel = (model: string = "gemini-1.5-pro") => {
-    return genAI.getGenerativeModel({ model });
+export const getGeminiModel = (model: string = "gemini-1.5-flash") => {
+  return genAI.getGenerativeModel({ model });
 };
 
 export const VIBE_SYSTEM_PROMPT = `
