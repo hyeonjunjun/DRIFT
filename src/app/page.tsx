@@ -1,176 +1,197 @@
-"use client";
+'use client';
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Map as MapIcon, Compass, Coffee, Info } from 'lucide-react';
-import Link from 'next/link';
-import VibeMap from '@/components/map/VibeMap';
-import { useVibeAgent } from '@/hooks/useVibeAgent';
-import { VibeSegment } from '@/types';
-import westVillageData from '@/lib/vibe-graph/west-village.json';
+import { useState, useRef } from 'react';
+import * as Tone from 'tone';
+import SynthEngine from '@/components/synth-engine';
+import CameraInput, { CameraInputHandle } from '@/components/camera-input';
+import Visualizer from '@/components/interface/Visualizer';
+import { useSynthStore } from '@/lib/store';
+import { Settings, Play, Square, Camera, Activity } from 'lucide-react';
 
 export default function Home() {
-  const { segments, query, curate, isCurating, conciergeNote, activeLabels } = useVibeAgent(westVillageData as VibeSegment[]);
-  const [searchInput, setSearchInput] = useState('');
+  const cameraRef = useRef<CameraInputHandle>(null);
+  const { params, isAnalyzing, setIsAnalyzing, isPlaying, setIsPlaying, setParams } = useSynthStore();
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    curate(searchInput);
+  const captureAndAnalyze = async () => {
+    // 1. Initialize Audio Context immediately on interaction
+    await Tone.start();
+
+    if (!cameraRef.current) return;
+    const imageSrc = cameraRef.current.getScreenshot();
+
+    if (!imageSrc) return;
+
+    setIsAnalyzing(true);
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageSrc }),
+      });
+      const data = await res.json();
+
+      if (data.error) throw new Error(data.error);
+
+      setParams(data);
+      setIsPlaying(true); // Auto-start sequence
+    } catch (e) {
+      console.error(e);
+      alert('Failed to analyze texture. Check console for details.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const togglePlayback = async () => {
+    await Tone.start();
+    setIsPlaying(!isPlaying);
   };
 
   return (
-    <main className="relative flex h-screen w-full flex-col md:flex-row overflow-hidden">
-      {/* Left Sidebar: Context & Search */}
-      <section className="z-10 w-full md:w-[450px] bg-background border-r border-border p-8 flex flex-col gap-12 overflow-y-auto">
-        <header>
-          <h1 className="text-4xl font-serif text-foreground mb-2">DRIFT</h1>
-          <p className="text-muted-foreground font-sans text-sm tracking-widest uppercase">Fractal Navigation Engine</p>
-        </header>
+    <main className="min-h-screen p-4 md:p-8 flex flex-col items-center justify-center gap-6 relative overflow-hidden bg-[#0a0a0a]">
+      {/* Background Grid Texture */}
+      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none"
+        style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '40px 40px' }}
+      />
 
-        <form onSubmit={handleSearch} className="relative">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="I want a quiet, historic walk..."
-            className="w-full bg-muted border border-border rounded-xl px-12 py-4 font-sans text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/50 transition-all"
-          />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-          <button
-            type="submit"
-            className="absolute right-3 top-1/2 -translate-y-1/2 bg-foreground text-background rounded-lg px-3 py-1 text-xs font-sans hover:opacity-90 transition-opacity"
-          >
-            Curate
-          </button>
-        </form>
+      <SynthEngine />
 
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between border-b border-border pb-2">
-            <h2 className="font-serif text-xl">Current Curation</h2>
-            <span className="text-xs font-sans text-muted-foreground bg-muted px-2 py-1 rounded-full">
-              {segments.length} segments found
-            </span>
-          </div>
-
-          <AnimatePresence>
-            {conciergeNote && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="bg-accent/5 p-4 rounded-xl border border-accent/20"
-              >
-                <p className="text-sm font-serif italic text-foreground leading-relaxed">
-                  "{conciergeNote}"
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="flex flex-col gap-4">
-            {segments.map((s) => (
-              <motion.div
-                key={s.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="group p-4 rounded-xl border border-transparent hover:border-accent/20 hover:bg-muted/50 transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="w-2 h-2 rounded-full bg-accent" />
-                  <h3 className="font-serif text-lg">{s.name}</h3>
-                </div>
-                <p className="text-muted-foreground text-sm font-sans leading-relaxed mb-3">
-                  {s.description}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {s.labels.map(L => (
-                    <span key={L} className="text-[10px] font-sans uppercase tracking-wider text-accent border border-accent/30 px-2 py-0.5 rounded-full">
-                      {L}
-                    </span>
-                  ))}
-                </div>
-              </motion.div>
-            ))}
-          </div>
+      {/* Header */}
+      <header className="z-10 w-full max-w-lg flex justify-between items-end border-b border-[#333] pb-4 font-mono">
+        <div>
+          <h1 className="text-2xl tracking-tighter font-bold text-[#f0f0f0]">
+            surface<span className="text-[#ff4d00]">.wav</span>
+          </h1>
+          <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">Matter to Music Converter</p>
         </div>
+        <div className="text-right">
+          <div className="text-xs text-gray-500 font-mono">V.1.0 // LAB-04</div>
+          <div className="text-[10px] text-[#ff4d00] animate-pulse">SYSTEM_ACTIVE</div>
+        </div>
+      </header>
 
-        <footer className="mt-auto pt-8 border-t border-border flex flex-col gap-6">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <div className="flex gap-4">
-              <Link href="/odyssey" title="The Odyssey">
-                <Compass className="w-5 h-5 hover:text-accent cursor-pointer transition-colors" />
-              </Link>
-              <Link href="/joyride" title="The Joyride">
-                <MapIcon className="w-5 h-5 hover:text-accent cursor-pointer transition-colors" />
-              </Link>
-              <Coffee className="w-5 h-5 hover:text-accent cursor-pointer transition-colors" />
+      {/* Main Interface */}
+      <div className="z-10 w-full max-lg:max-w-md lg:max-w-4xl grid lg:grid-cols-2 gap-6">
+
+        {/* Left Column: Visual Input */}
+        <section className="border border-[#333] bg-[#111] p-1 relative flex flex-col gap-4">
+          {/* Decorative corner screws */}
+          <div className="absolute top-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+          <div className="absolute top-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+          <div className="absolute bottom-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+          <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+
+          <div className="p-4 flex flex-col gap-4 h-full">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[10px] text-gray-400 font-mono flex items-center gap-2">
+                <Camera size={12} className="text-[#ff4d00]" /> VISUAL_INPUT_STREAM
+              </span>
+              <div className="flex gap-1">
+                <div className="w-1 h-1 bg-[#333]" />
+                <div className="w-1 h-1 bg-[#333]" />
+                <div className="w-1 h-1 bg-[#ff4d00]" />
+              </div>
             </div>
-            <p className="text-[10px] tracking-widest uppercase">West Village Prototype v1.0</p>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Link href="/odyssey" className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-transparent hover:border-accent/20 transition-all">
-              <span className="text-[8px] uppercase tracking-widest text-muted-foreground">Switch to Macro</span>
-              <span className="text-xs font-serif">The Odyssey</span>
-            </Link>
-            <Link href="/joyride" className="flex flex-col gap-1 p-3 rounded-xl bg-muted/50 border border-transparent hover:border-accent/20 transition-all">
-              <span className="text-[8px] uppercase tracking-widest text-muted-foreground">Switch to Meso</span>
-              <span className="text-xs font-serif">The Joyride</span>
-            </Link>
-          </div>
-        </footer>
-      </section>
+            <CameraInput ref={cameraRef} isAnalyzing={isAnalyzing} />
 
-      {/* Main Area: Map */}
-      <section className="flex-1 relative bg-muted">
-        <VibeMap
-          segments={segments}
-          mapboxToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''}
-        />
-
-        {/* Curation Overlay */}
-        <AnimatePresence>
-          {isCurating && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-12 text-center"
+            <button
+              onClick={captureAndAnalyze}
+              disabled={isAnalyzing}
+              className="w-full h-16 bg-[#f0f0f0] text-[#0a0a0a] font-bold text-lg hover:bg-[#ff4d00] hover:text-white transition-all border border-transparent disabled:opacity-50 active:scale-95 flex items-center justify-center gap-3 font-mono"
+              style={{ borderRadius: '0' }}
             >
-              <div className="max-w-md">
-                <motion.div
-                  animate={{
-                    scale: [1, 1.05, 1],
-                    rotate: [0, 1, 0]
-                  }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <h2 className="text-3xl font-serif mb-4 italic">Curating...</h2>
-                </motion.div>
-                <p className="text-muted-foreground font-sans animate-pulse">
-                  {activeLabels.length > 0
-                    ? `Aligning with ${activeLabels.join(', ')}...`
-                    : "Finding a path with better light and historic soul."}
+              {isAnalyzing ? (
+                <>
+                  <Activity className="animate-spin" /> PROCESSING...
+                </>
+              ) : (
+                <>
+                  <Activity /> CAPTURE_&_SYNTHESIZE
+                </>
+              )}
+            </button>
+          </div>
+        </section>
+
+        {/* Right Column: Audio & Readout */}
+        <section className="border border-[#333] bg-[#111] p-1 relative flex flex-col gap-4">
+          {/* Decorative corner screws */}
+          <div className="absolute top-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+          <div className="absolute top-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+          <div className="absolute bottom-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+          <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+
+          <div className="p-4 flex flex-col gap-4 flex-grow h-full justify-between">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[10px] text-gray-400 font-mono flex items-center gap-2">
+                <Settings size={12} className="text-[#ff4d00]" /> SYNTH_PARAMETERS
+              </span>
+              <span className="text-[10px] text-gray-600 font-mono">SEQ_01</span>
+            </div>
+
+            {/* Output Grid */}
+            <div className="grid grid-cols-2 gap-2 font-mono flex-grow">
+              <div className="col-span-2">
+                <Visualizer />
+              </div>
+              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
+                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Oscillator</span>
+                <span className="text-[#ff4d00] text-sm font-bold uppercase">{params?.oscillator_type || "---"}</span>
+              </div>
+              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
+                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Distortion</span>
+                <span className="text-[#ff4d00] text-sm font-bold">{(params?.distortion_amount || 0).toFixed(2)}</span>
+              </div>
+              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
+                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Filter Cutoff</span>
+                <span className="text-[#ff4d00] text-sm font-bold">{params?.filter_cutoff || "---"} Hz</span>
+              </div>
+              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
+                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Tempo</span>
+                <span className="text-[#ff4d00] text-sm font-bold">{params?.bpm || "---"} BPM</span>
+              </div>
+              <div className="col-span-2 border border-[#333] p-3 bg-black">
+                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Texture Description</span>
+                <p className="text-[#f0f0f0] text-[11px] leading-tight mt-1 line-clamp-2">
+                  {params?.texture_description || "Awaiting visual data input..."}
                 </p>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Map Legend/Overlay */}
-        <div className="absolute top-6 right-6 z-10 hidden md:block">
-          <div className="bg-background/90 backdrop-blur-md border border-border p-4 rounded-2xl shadow-xl max-w-[200px]">
-            <h4 className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
-              <Info className="w-3 h-3" /> Vibe Intensity
-            </h4>
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden mb-2">
-              <div className="h-full w-2/3 bg-accent rounded-full" />
             </div>
-            <p className="text-[10px] text-muted-foreground leading-tight">
-              Higher intensity indicates a more "intentional" pedestrian experience.
-            </p>
+
+            {/* Pattern Visualization */}
+            <div className="border border-[#333] p-2 bg-[#0a0a0a] min-h-[40px] flex gap-[2px]">
+              {(params?.sequencer_pattern || Array(16).fill(0)).map((val, i) => (
+                <div
+                  key={i}
+                  className={`flex-grow border border-[#222] ${val === 1 ? 'bg-[#ff4d00]' : 'bg-[#111]'} transition-colors`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={togglePlayback}
+              className={`w-full h-12 border flex items-center justify-center gap-2 font-mono text-xs font-bold transition-all ${isPlaying ? 'border-[#ff4d00] text-[#ff4d00] bg-[#ff4d00]/10' : 'border-[#333] text-gray-400'}`}
+              style={{ borderRadius: '0' }}
+            >
+              {isPlaying ? (
+                <>
+                  <Square size={14} fill="currentColor" /> STOP_AUDIO_ENGINE
+                </>
+              ) : (
+                <>
+                  <Play size={14} fill="currentColor" /> START_AUDIO_ENGINE
+                </>
+              )}
+            </button>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
+
+      <footer className="z-10 text-[9px] text-gray-600 font-mono text-center mt-4">
+        HARDWARE ACCELERATED // GEMINI 1.5 FLASH // TONE.JS V14 // NO_RADIUS_ZONE
+      </footer>
     </main>
   );
 }

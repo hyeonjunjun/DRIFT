@@ -1,20 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "DRIFT | Fractal Navigation",
-  description: "Experience-led navigation for the intentional traveler.",
+  title: "surface.wav | Matter-to-Music",
+  description: "A hackathon project using Gemini 1.5 Flash to convert physical textures into generative techno loops.",
 };
 
 export default function RootLayout({
@@ -24,9 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${inter.variable} ${playfair.variable} antialiased`}
-      >
+      <body className={`${geistMono.variable} antialiased font-mono`}>
         {children}
       </body>
     </html>
