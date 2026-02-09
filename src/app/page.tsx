@@ -1,43 +1,68 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as Tone from 'tone';
 import SynthEngine from '@/components/synth-engine';
+import dynamic from 'next/dynamic';
+import TextureInput, { TextureInputHandle } from '@/components/interface/TextureInput';
+import InertiaMeter from '@/components/interface/InertiaMeter';
+import TerminalOutput from '@/components/interface/TerminalOutput';
 import CameraInput, { CameraInputHandle } from '@/components/camera-input';
-import Visualizer from '@/components/interface/Visualizer';
+const ParticleSphere = dynamic(() => import('@/components/interface/ParticleSphere'), { ssr: false });
+import RecordButton from '@/components/interface/RecordButton';
 import { useSynthStore } from '@/lib/store';
-import { Settings, Play, Square, Camera, Activity } from 'lucide-react';
+import { Settings, Play, Square, Camera, Activity, Cpu, Wifi, BatteryMedium, AlertTriangle, RefreshCcw, Info } from 'lucide-react';
 
 export default function Home() {
-  const cameraRef = useRef<CameraInputHandle>(null);
+  const textureRef = useRef<TextureInputHandle>(null);
   const { params, isAnalyzing, setIsAnalyzing, isPlaying, setIsPlaying, setParams } = useSynthStore();
+  const [error, setError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const [telemetry, setTelemetry] = useState({ load: 14, tps: 60 });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTelemetry(prev => ({
+        load: Math.floor(10 + Math.random() * 12),
+        tps: Math.floor(58 + Math.random() * 4)
+      }));
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
 
   const captureAndAnalyze = async () => {
-    // 1. Initialize Audio Context immediately on interaction
+    setError(null);
     await Tone.start();
 
-    if (!cameraRef.current) return;
-    const imageSrc = cameraRef.current.getScreenshot();
+    if (!textureRef.current) return;
+    const imageSrc = await textureRef.current.getCapture();
 
-    if (!imageSrc) return;
+    if (!imageSrc) {
+      setError("NO_SOURCE_FOUND // PLEASE_UPLOAD_OR_CAPTURE");
+      return;
+    }
 
     setIsAnalyzing(true);
-
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageSrc }),
       });
-      const data = await res.json();
 
+      if (!res.ok) throw new Error("NETWORK_FAILURE // Gemini API Timeout");
+
+      const data = await res.json();
       if (data.error) throw new Error(data.error);
 
       setParams(data);
-      setIsPlaying(true); // Auto-start sequence
-    } catch (e) {
+      setIsPlaying(true);
+      setShowInstructions(false);
+    } catch (e: any) {
       console.error(e);
-      alert('Failed to analyze texture. Check console for details.');
+      setError(e.message || "ANALYSIS_FAILED // PLEASE_RETRY");
     } finally {
       setIsAnalyzing(false);
     }
@@ -49,149 +74,216 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen p-4 md:p-8 flex flex-col items-center justify-center gap-6 relative overflow-hidden bg-[#0a0a0a]">
-      {/* Background Grid Texture */}
-      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none"
-        style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '40px 40px' }}
-      />
-
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0a0a0a] text-[#f0f0f0] font-mono select-none crt-overlay">
       <SynthEngine />
 
-      {/* Header */}
-      <header className="z-10 w-full max-w-lg flex justify-between items-end border-b border-[#333] pb-4 font-mono">
-        <div>
-          <h1 className="text-2xl tracking-tighter font-bold text-[#f0f0f0]">
-            surface<span className="text-[#ff4d00]">.wav</span>
-          </h1>
-          <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">Matter to Music Converter</p>
+      {/* Persistent Status Bar */}
+      <div className="h-6 border-b border-[#333] flex items-center justify-between px-3 text-[9px] text-gray-500 bg-[#0a0a0a] z-50">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1 font-bold">
+            <Cpu size={10} className="text-[#ff4d00]" />
+            LOAD: {telemetry.load}%
+          </span>
+          <span className="flex items-center gap-1 font-bold">
+            <Wifi size={10} />
+            LINK: ACTIVE
+          </span>
+          <span className="flex items-center gap-1 font-bold">
+            <Activity size={10} />
+            TPS: {telemetry.tps}
+          </span>
         </div>
-        <div className="text-right">
-          <div className="text-xs text-gray-500 font-mono">V.1.0 // LAB-04</div>
-          <div className="text-[10px] text-[#ff4d00] animate-pulse">SYSTEM_ACTIVE</div>
-        </div>
-      </header>
+        {error ? (
+          <div className="flex items-center gap-2 text-[#ff4d00] animate-pulse">
+            <AlertTriangle size={10} /> {error}
+          </div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <span className="text-[#ff4d00] font-bold">MODE: {isAnalyzing ? "ANALYZING" : "IDLE"}</span>
+            <span className="flex items-center gap-1">100% <BatteryMedium size={10} /></span>
+          </div>
+        )}
+      </div>
 
-      {/* Main Interface */}
-      <div className="z-10 w-full max-lg:max-w-md lg:max-w-4xl grid lg:grid-cols-2 gap-6">
+      {/* Main Container */}
+      <div className="flex-grow flex flex-col md:flex-row overflow-hidden relative">
+        {/* Background Grid */}
+        <div className="absolute inset-0 z-0 opacity-5 pointer-events-none"
+          style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '40px 40px' }}
+        />
 
-        {/* Left Column: Visual Input */}
-        <section className="border border-[#333] bg-[#111] p-1 relative flex flex-col gap-4">
-          {/* Decorative corner screws */}
-          <div className="absolute top-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
-          <div className="absolute top-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
-          <div className="absolute bottom-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
-          <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
-
-          <div className="p-4 flex flex-col gap-4 h-full">
-            <div className="flex justify-between items-center px-1">
-              <span className="text-[10px] text-gray-400 font-mono flex items-center gap-2">
-                <Camera size={12} className="text-[#ff4d00]" /> VISUAL_INPUT_STREAM
-              </span>
-              <div className="flex gap-1">
-                <div className="w-1 h-1 bg-[#333]" />
-                <div className="w-1 h-1 bg-[#333]" />
-                <div className="w-1 h-1 bg-[#ff4d00]" />
-              </div>
+        {/* Left Panel: Texture/Input */}
+        <div className="flex-grow md:w-3/5 border-r border-[#333] flex flex-col relative z-10 bg-[#0a0a0a]/50">
+          <div className="p-3 border-b border-[#333] flex justify-between items-center bg-[#111]/80 backdrop-blur-md">
+            <span className="text-[10px] tracking-widest text-[#ff4d00] flex items-center gap-2 font-bold">
+              <Camera size={12} /> TEXTURE_DECOMPOSITION_UNIT
+            </span>
+            <div className="flex gap-2">
+              {error && (
+                <button onClick={() => setError(null)} className="text-[9px] hover:text-[#ff4d00] flex items-center gap-1 uppercase">
+                  <RefreshCcw size={10} /> Clear_Error
+                </button>
+              )}
+              <div className="w-2 h-2 bg-[#ff4d00]" />
             </div>
+          </div>
 
-            <CameraInput ref={cameraRef} isAnalyzing={isAnalyzing} />
+          <div className="flex-grow flex items-center justify-center p-6 relative">
+            <div className={`w-full max-w-2xl aspect-video border border-[#333] bg-black shadow-2xl relative transition-all duration-500 ${isAnalyzing ? 'scale-[1.02] border-[#ff4d00]' : ''}`}>
+              <TextureInput
+                ref={textureRef}
+                isAnalyzing={isAnalyzing}
+                selectedImage={selectedImage}
+                onImageSelect={setSelectedImage}
+              />
 
+              {showInstructions && !isAnalyzing && !selectedImage && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-30 p-8 text-center pointer-events-none">
+                  <div className="max-w-xs space-y-4">
+                    <Info className="mx-auto text-[#ff4d00]" size={32} />
+                    <h2 className="text-xs font-bold uppercase tracking-[0.2em]">Hardware Offline</h2>
+                    <p className="text-[10px] text-gray-400 leading-relaxed uppercase">Drop a texture file or activate thermal sensor to begin analysis.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-[#333] bg-[#0d0d0d]">
             <button
               onClick={captureAndAnalyze}
               disabled={isAnalyzing}
-              className="w-full h-16 bg-[#f0f0f0] text-[#0a0a0a] font-bold text-lg hover:bg-[#ff4d00] hover:text-white transition-all border border-transparent disabled:opacity-50 active:scale-95 flex items-center justify-center gap-3 font-mono"
+              className={`w-full h-20 font-bold text-xl transition-all border border-transparent disabled:opacity-50 active:scale-[0.98] flex items-center justify-center gap-4 ${isAnalyzing ? 'bg-[#ff4d00] text-white animate-pulse' : 'bg-[#f0f0f0] text-[#0a0a0a] hover:bg-[#ff4d00] hover:text-white'}`}
               style={{ borderRadius: '0' }}
             >
               {isAnalyzing ? (
                 <>
-                  <Activity className="animate-spin" /> PROCESSING...
+                  <Activity className="animate-spin" size={24} /> DECOMPOSING...
                 </>
               ) : (
                 <>
-                  <Activity /> CAPTURE_&_SYNTHESIZE
+                  <RefreshCcw size={24} /> {params ? 'RE-SCAN_ARCHIVE' : 'ANALYZE_TEXTURE'}
                 </>
               )}
             </button>
           </div>
-        </section>
+        </div>
 
-        {/* Right Column: Audio & Readout */}
-        <section className="border border-[#333] bg-[#111] p-1 relative flex flex-col gap-4">
-          {/* Decorative corner screws */}
-          <div className="absolute top-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
-          <div className="absolute top-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
-          <div className="absolute bottom-2 left-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
-          <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full border border-[#333] bg-[#0a0a0a]" />
+        {/* Right Panel: Controls/Parameters */}
+        <div className="w-full md:w-2/5 flex flex-col bg-[#111]/40 backdrop-blur-xl z-20">
+          <div className="p-3 border-b border-[#333] flex justify-between items-center bg-[#111]/80 backdrop-blur-md">
+            <span className="text-[10px] tracking-widest text-gray-400 flex items-center gap-2 font-bold uppercase">
+              <Settings size={12} className="text-[#ff4d00]" /> Synth_Profile_V1.0.4
+            </span>
+            <span className="text-[8px] text-[#333] font-bold">LFO_SYNC: ON</span>
+          </div>
 
-          <div className="p-4 flex flex-col gap-4 flex-grow h-full justify-between">
-            <div className="flex justify-between items-center px-1">
-              <span className="text-[10px] text-gray-400 font-mono flex items-center gap-2">
-                <Settings size={12} className="text-[#ff4d00]" /> SYNTH_PARAMETERS
-              </span>
-              <span className="text-[10px] text-gray-600 font-mono">SEQ_01</span>
+          <div className="flex-grow overflow-y-auto custom-scrollbar p-8 flex flex-col gap-8">
+
+            <div className="h-48 border border-[#333] bg-black/60 relative overflow-hidden">
+              <ParticleSphere />
             </div>
 
-            {/* Output Grid */}
-            <div className="grid grid-cols-2 gap-2 font-mono flex-grow">
-              <div className="col-span-2">
-                <Visualizer />
-              </div>
-              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
-                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Oscillator</span>
-                <span className="text-[#ff4d00] text-sm font-bold uppercase">{params?.oscillator_type || "---"}</span>
-              </div>
-              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
-                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Distortion</span>
-                <span className="text-[#ff4d00] text-sm font-bold">{(params?.distortion_amount || 0).toFixed(2)}</span>
-              </div>
-              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
-                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Filter Cutoff</span>
-                <span className="text-[#ff4d00] text-sm font-bold">{params?.filter_cutoff || "---"} Hz</span>
-              </div>
-              <div className="border border-[#333] p-3 bg-black flex flex-col justify-between">
-                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Tempo</span>
-                <span className="text-[#ff4d00] text-sm font-bold">{params?.bpm || "---"} BPM</span>
-              </div>
-              <div className="col-span-2 border border-[#333] p-3 bg-black">
-                <span className="text-[9px] text-gray-500 uppercase tracking-widest">Texture Description</span>
-                <p className="text-[#f0f0f0] text-[11px] leading-tight mt-1 line-clamp-2">
-                  {params?.texture_description || "Awaiting visual data input..."}
-                </p>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
+              <InertiaMeter
+                label="Oscillator"
+                value={params ? 0.8 : 0}
+                displayValue={params?.oscillator_type || '---'}
+              />
+              <InertiaMeter
+                label="Distortion"
+                value={params?.distortion_amount || 0}
+                displayValue={params ? `${(params.distortion_amount * 100).toFixed(0)}%` : '---'}
+              />
+              <InertiaMeter
+                label="Filter Hz"
+                value={params ? (params.filter_cutoff / 10000) : 0}
+                displayValue={params?.filter_cutoff || '---'}
+              />
+              <InertiaMeter
+                label="BPM"
+                value={params ? (params.bpm - 60) / 120 : 0}
+                displayValue={params?.bpm || '---'}
+              />
             </div>
 
-            {/* Pattern Visualization */}
-            <div className="border border-[#333] p-2 bg-[#0a0a0a] min-h-[40px] flex gap-[2px]">
-              {(params?.sequencer_pattern || Array(16).fill(0)).map((val, i) => (
-                <div
-                  key={i}
-                  className={`flex-grow border border-[#222] ${val === 1 ? 'bg-[#ff4d00]' : 'bg-[#111]'} transition-colors`}
-                />
-              ))}
-            </div>
+            <section className="space-y-3">
+              <span className="text-[9px] text-[#ff4d00] uppercase font-bold tracking-widest">Metadata readout</span>
+              <div className="border border-[#333] bg-black/60 relative overflow-hidden min-h-[120px] flex flex-col">
+                {/* Ambient Terminal Log */}
+                <div className="absolute inset-0 z-0">
+                  <TerminalOutput />
+                </div>
 
+                {/* Decorative scanning line */}
+                {isAnalyzing && <div className="absolute inset-0 h-1 bg-[#ff4d00]/40 animate-scan z-20 blur-[1px]" />}
+
+                <div className="relative z-10 p-5 flex-grow flex items-center">
+                  <p className="text-[11px] leading-relaxed text-gray-400 font-bold uppercase tracking-tight bg-black/40 backdrop-blur-[2px] p-2 border-l-2 border-[#ff4d00]">
+                    {params?.texture_description || "Awaiting hardware capture for surface analysis. point sensor at target matter to begin decomposition process."}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-[#ff4d00] uppercase font-bold tracking-widest">16-Step Grid</span>
+                <span className={`text-[8px] font-bold ${isPlaying ? 'text-[#ff4d00]' : 'text-gray-600'}`}>
+                  {isPlaying ? 'TRANSPORT_RUNNING' : 'TRANSPORT_HALTED'}
+                </span>
+              </div>
+              <div className="h-10 flex gap-[2px]">
+                {(params?.sequencer_pattern || Array(16).fill(0)).map((val, i) => (
+                  <div
+                    key={i}
+                    className={`flex-grow border border-[#222] ${val === 1 ? 'bg-[#ff4d00]' : 'bg-black/90'} ${isPlaying ? 'animate-[pulse_2s_infinite]' : ''}`}
+                    style={{ animationDelay: `${i * 0.1}s` }}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div className="p-6 border-t border-[#333] bg-[#0d0d0d]">
             <button
               onClick={togglePlayback}
-              className={`w-full h-12 border flex items-center justify-center gap-2 font-mono text-xs font-bold transition-all ${isPlaying ? 'border-[#ff4d00] text-[#ff4d00] bg-[#ff4d00]/10' : 'border-[#333] text-gray-400'}`}
+              disabled={!params}
+              className={`w-full h-16 border-2 flex items-center justify-center gap-3 font-bold text-sm tracking-widest transition-all active:scale-[0.98] disabled:opacity-30 ${isPlaying ? 'border-[#ff4d00] text-[#ff4d00] bg-[#ff4d00]/5 hover:bg-[#ff4d00]/10' : 'border-[#444] text-gray-500 hover:text-gray-300 hover:border-gray-300'}`}
               style={{ borderRadius: '0' }}
             >
               {isPlaying ? (
                 <>
-                  <Square size={14} fill="currentColor" /> STOP_AUDIO_ENGINE
+                  <Square size={18} fill="currentColor" /> TERMINATE_SEQUENCE
                 </>
               ) : (
                 <>
-                  <Play size={14} fill="currentColor" /> START_AUDIO_ENGINE
+                  <Play size={18} fill="currentColor" /> INITIATE_SEQUENCE
                 </>
               )}
             </button>
           </div>
-        </section>
+        </div>
       </div>
 
-      <footer className="z-10 text-[9px] text-gray-600 font-mono text-center mt-4">
-        HARDWARE ACCELERATED // GEMINI 1.5 FLASH // TONE.JS V14 // NO_RADIUS_ZONE
+      {/* Docked App Bar */}
+      <footer className="h-10 border-t border-[#333] bg-[#050505] flex items-center justify-between px-6 z-50">
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-[#ff4d00] animate-ping' : 'bg-green-500 opacity-50'}`} />
+          <span className="text-[10px] font-bold tracking-[0.3em] uppercase">surface<span className="text-[#ff4d00]">.wav</span></span>
+          <div className="ml-4">
+            <RecordButton />
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-8 text-[8px] text-gray-600 font-bold tracking-widest">
+          {['Archive', 'Samples', 'Telemetry', 'Hardware'].map(m => (
+            <span key={m} className="hover:text-[#ff4d00] cursor-pointer transition-colors uppercase">{m}</span>
+          ))}
+        </div>
+        <div className="text-[8px] text-gray-700 font-bold uppercase tracking-wider">
+          Node_115_A // Flash-V1.5
+        </div>
       </footer>
-    </main>
+    </div>
   );
 }

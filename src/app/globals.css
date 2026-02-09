@@ -1,58 +1,92 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
-  --void-black: #0a0a0a;
-  --off-white: #f0f0f0;
-  --safety-orange: #ff4d00;
-  --lab-gray: #1a1a1a;
+@theme {
+  --color-void-black: #0a0a0a;
+  --color-off-white: #f0f0f0;
+  --color-safety-orange: #ff4d00;
+  --color-lab-gray: #1a1a1a;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  background-color: var(--void-black);
-  color: var(--off-white);
+  background-color: var(--color-void-black);
+  color: var(--color-off-white);
   font-family: 'Geist Mono', 'Courier New', monospace;
   -webkit-font-smoothing: antialiased;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Brutalist Utilities */
 @layer utilities {
-  .border-industrial {
-    @apply border border-solid border-[#333];
+  .text-label {
+    @apply text-[9px] text-[#9ca3af] uppercase tracking-[0.1em] font-medium;
   }
 
-  .border-active {
-    @apply border-safety-orange text-safety-orange;
+  .text-data {
+    @apply text-sm text-[#ff4d00] font-bold tracking-tight;
+  }
+
+  .border-industrial {
+    @apply border border-solid border-[#333];
   }
 
   .bg-industrial {
     @apply bg-[#111];
   }
 
-  .sharp-edge {
-    border-radius: 0px !important;
+  /* CRT Scanline Effect */
+  .crt-overlay::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 100;
+    background-size: 100% 3px, 3px 100%;
+    pointer-events: none;
+    opacity: 0.15;
   }
-}
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
+  @keyframes scan {
+    from {
+      top: -100%;
+    }
 
-::-webkit-scrollbar-track {
-  background: var(--void-black);
-  border-left: 1px solid #333;
-}
+    to {
+      top: 100%;
+    }
+  }
 
-::-webkit-scrollbar-thumb {
-  background: #333;
-}
+  .animate-scan {
+    animation: scan 3s linear infinite;
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--safety-orange);
+  /* Custom Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #333;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-safety-orange);
+  }
 }
 
 /* Industrial Component styles */

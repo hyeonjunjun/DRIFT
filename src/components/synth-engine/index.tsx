@@ -25,16 +25,28 @@ export default function SynthEngine() {
             envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 1 },
         }).connect(distortion);
 
+        // Analysis Node for Three.js
+        const analyzer = new Tone.Analyser("fft", 256);
+        const recorder = new Tone.Recorder();
+        Tone.getDestination().connect(analyzer);
+        Tone.getDestination().connect(recorder);
+
         synthRef.current = synth;
         distortionRef.current = distortion;
         filterRef.current = filter;
         reverbRef.current = reverb;
+
+        // Provide nodes to the state
+        useSynthStore.getState().setAnalyzer(analyzer);
+        useSynthStore.getState().setRecorder(recorder);
 
         return () => {
             synth.dispose();
             distortion.dispose();
             filter.dispose();
             reverb.dispose();
+            analyzer.dispose();
+            recorder.dispose();
             sequenceRef.current?.dispose();
         };
     }, []);
@@ -48,7 +60,7 @@ export default function SynthEngine() {
         }
     }, [isPlaying]);
 
-    // 3. Update Audio Params when AI returns new data
+    // 3. Update Audio Params when AI returns new data (Morphing)
     useEffect(() => {
         if (!params || !synthRef.current) return;
 
@@ -61,12 +73,14 @@ export default function SynthEngine() {
             resonance
         } = params;
 
-        // Update Nodes
+        // Smoothly Morph Nodes
         synthRef.current.oscillator.type = oscillator_type;
         distortionRef.current!.distortion = distortion_amount;
-        filterRef.current!.frequency.rampTo(filter_cutoff, 0.1);
-        filterRef.current!.Q.value = resonance;
-        Tone.getTransport().bpm.rampTo(bpm, 0.5);
+
+        // Using rampTo for musical transitions
+        filterRef.current!.frequency.rampTo(filter_cutoff, 2);
+        filterRef.current!.Q.rampTo(resonance, 2);
+        Tone.getTransport().bpm.rampTo(bpm, 2);
 
         // Update Sequencer
         if (sequenceRef.current) sequenceRef.current.dispose();
@@ -74,7 +88,6 @@ export default function SynthEngine() {
         sequenceRef.current = new Tone.Sequence(
             (time, note) => {
                 if (note === 1) {
-                    // Play a low industrial drone note + random octave jumps
                     const pitch = Math.random() > 0.8 ? "C3" : "C2";
                     synthRef.current?.triggerAttackRelease(pitch, "8n", time);
                 }

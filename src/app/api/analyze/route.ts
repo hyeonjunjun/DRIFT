@@ -1,30 +1,35 @@
 import { NextResponse } from 'next/server';
-import { model } from '@/lib/gemini';
+import { getGeminiModel } from '@/lib/gemini';
 import { SynthParamsSchema } from '@/lib/schemas';
+
+export const maxDuration = 60; // Increase timeout for Gemini analysis
 
 export async function POST(req: Request) {
     try {
         const { image } = await req.json(); // Expecting base64 string
         const base64Data = image.split(',')[1];
 
+        const model = getGeminiModel();
         const prompt = `
-      Analyze the texture in this image. Convert its physical properties into audio synthesizer parameters.
-      - Rough/Rusty textures = Sawtooth/Square waves, High Distortion.
-      - Smooth/Soft textures = Sine/Triangle waves, Low Distortion, High Reverb.
-      - Chaotic/Busy textures = Fast BPM, Complex Pattern.
-      - Organized/Grid textures = Slow BPM, Steady Pattern.
+            ACTIVATE: Texture Decomposition Protocol
+            ANALYSIS: Physical matter -> Synth Engine params.
+            - Rough/Jagged: Sawtooth/Square, High Distortion.
+            - Smooth/Organic: Sine/Triangle, Null Distortion, High Reverb.
+            - High Entropy: High BPM, Aggressive Sequence.
+            - Low Entropy: Low BPM, Stable Sequence.
 
-      Return ONLY a JSON object strictly matching this schema:
-      {
-        "oscillator_type": "sine" | "square" | "sawtooth" | "triangle",
-        "distortion_amount": float (0.0 to 1.0),
-        "filter_cutoff": int (100 to 10000),
-        "resonance": float (0 to 10),
-        "bpm": int (60 to 180),
-        "sequencer_pattern": [array of 16 integers, either 0 or 1],
-        "texture_description": "short string description"
-      }
-    `;
+            REQUIRED_JSON_FORMAT:
+            {
+              "oscillator_type": "sine"|"square"|"sawtooth"|"triangle",
+              "distortion_amount": 0.0-1.0,
+              "filter_cutoff": 100-10000,
+              "resonance": 0-10,
+              "bpm": 60-180,
+              "sequencer_pattern": [16 binary integers],
+              "texture_description": "string"
+            }
+            RESPONSE: JSON_ONLY
+        `;
 
         const result = await model.generateContent([
             prompt,

@@ -27,7 +27,7 @@ const CameraInput = forwardRef<CameraInputHandle, CameraInputProps>(({ isAnalyzi
                 audio={false}
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
-                className="w-full h-full object-cover opacity-80 contrast-125 grayscale"
+                className="w-full h-full object-contain opacity-80 contrast-125 grayscale"
                 videoConstraints={{ facingMode: "environment" }}
             />
             {isAnalyzing && (
