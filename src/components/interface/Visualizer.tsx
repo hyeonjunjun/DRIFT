@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Tone from 'tone';
+import { Maximize2, Minimize2 } from 'lucide-react';
 
 export default function Visualizer() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const analyserRef = useRef<Tone.Analyser | null>(null);
     const animationRef = useRef<number | null>(null);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     useEffect(() => {
         const analyser = new Tone.Analyser("waveform", 256);
@@ -81,12 +83,25 @@ export default function Visualizer() {
     }, []);
 
     return (
-        <div className="w-full h-24 border border-[#333] bg-black overflow-hidden relative group hover:border-[#ff4d00]/30 transition-colors">
+        <div className={`w-full transition-all duration-500 ease-in-out border border-[#333] bg-black overflow-hidden relative group hover:border-[#ff4d00]/30 ${isExpanded ? 'h-96' : 'h-32'}`}>
             <canvas ref={canvasRef} width={800} height={200} className="w-full h-full" />
             <div className="absolute top-2 left-2 text-[8px] text-[#ff4d00] font-mono uppercase tracking-widest opacity-50 flex items-center gap-2">
                 <div className="w-1 h-1 bg-[#ff4d00] animate-pulse rounded-full" />
                 OSC_STREAM_ANALYSIS
             </div>
+
+            {/* Toggle Button */}
+            <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="absolute top-2 right-2 p-1.5 border border-[#333] bg-black/80 hover:bg-[#ff4d00]/10 hover:border-[#ff4d00] transition-colors group/btn"
+                title={isExpanded ? "Collapse" : "Expand"}
+            >
+                {isExpanded ? (
+                    <Minimize2 size={12} className="text-[#ff4d00]" />
+                ) : (
+                    <Maximize2 size={12} className="text-gray-500 group-hover/btn:text-[#ff4d00]" />
+                )}
+            </button>
         </div>
     );
 }

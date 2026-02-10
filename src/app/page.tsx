@@ -45,24 +45,44 @@ export default function Home() {
     }
 
     setIsAnalyzing(true);
+    console.log('[DRIFT] Starting analysis...', { imageSize: imageSrc.length });
+
     try {
+      // Create AbortController with 90-second timeout (longer than backend's 60s)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
+
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imageSrc }),
+        signal: controller.signal
       });
 
-      if (!res.ok) throw new Error("NETWORK_FAILURE // Gemini API Timeout");
+      clearTimeout(timeoutId);
+      console.log('[DRIFT] Response received:', { status: res.status, ok: res.ok });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[DRIFT] API Error Response:', errorText);
+        throw new Error(`NETWORK_FAILURE // ${res.status === 500 ? 'Server Error' : 'Gemini API Timeout'}`);
+      }
 
       const data = await res.json();
+      console.log('[DRIFT] Analysis complete:', data);
+
       if (data.error) throw new Error(data.error);
 
       setParams(data);
       setIsPlaying(true);
       setShowInstructions(false);
     } catch (e: any) {
-      console.error(e);
-      setError(e.message || "ANALYSIS_FAILED // PLEASE_RETRY");
+      console.error('[DRIFT] Analysis failed:', e);
+      if (e.name === 'AbortError') {
+        setError("TIMEOUT // Analysis took too long (>90s)");
+      } else {
+        setError(e.message || "ANALYSIS_FAILED // PLEASE_RETRY");
+      }
     } finally {
       setIsAnalyzing(false);
     }
